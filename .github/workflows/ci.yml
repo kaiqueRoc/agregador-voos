@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+env:
+  COMPOSE_FILE: docker/docker-compose.yml
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true

@@ -13,7 +13,7 @@ Docker · Prometheus · Grafana · OpenTelemetry · GitHub Actions · AWS EC2
 ## Como rodar
 
 ```bash
-docker compose up --build        # providers + redis + postgres + agregador → http://localhost:8000
+docker compose -f docker/docker-compose.yml up --build   # providers + redis + postgres + agregador → http://localhost:8000
 ```
 
 ```bash
@@ -77,35 +77,43 @@ Operação: `GET /` (endpoints + link de teste), `GET /health` (liveness),
 ## Arquitetura
 
 ```
-http (Fastify)            validação, status HTTP, log, métricas, rate limit
-  └─ SearchService        caso de uso: consolidar e registrar ──► SearchRecorder (Postgres, em background)
-       └─ ProviderGateway cache (Redis) + single-flight
+infra/http (Fastify)          rotas → controller: valida, chama o caso de uso, responde
+  └─ SearchFlightsUseCase     core: consolidar e registrar ──► SearchRecorder (Postgres, em background)
+       └─ FlightOffersGateway  interface no core; ProviderGateway em infra: cache (Redis) + single-flight
             └─ ProviderClient × 3, em paralelo
                  circuit breaker → orçamento de 3s → retry → fetch → normalizador
-       └─ domain          aggregate(): agrupar por voo → estratégia escolhe 1 oferta → ordenar
+       └─ core/entities       aggregate(): agrupar por voo → estratégia escolhe 1 oferta → ordenar
 ```
+
+Segue o [ARCHITECTURE.md](ARCHITECTURE.md): `infra` depende de `core`, e o
+`core` nunca importa `infra`.
 
 ```
 aggregator/src/
-├── domain/        regras puras, sem I/O: tipos, companhias, estratégias, agregação
-├── providers/     normalizers (contrato → Offer), client (resiliência), gateway (cache)
-├── resilience/    retry, circuit breaker
-├── cache/         cache de ofertas no Redis
-├── persistence/   gravação das buscas no Postgres + schema
-├── services/      caso de uso de busca
-├── http/          app, routes/ (search, operational), contrato, log por requisição
-├── observability/ métricas, tracing
-├── config.ts      variáveis de ambiente validadas na subida
-├── container.ts   composition root: único lugar que monta as peças reais
-└── server.ts      entry point + graceful shutdown
+├── config/env/           variáveis de ambiente validadas na subida
+├── core/                 regra de negócio, sem I/O
+│   ├── entities/         oferta, companhia, estratégias, agregação, resultado da busca
+│   ├── use-cases/        search-flights, check-readiness
+│   ├── gateways/         interfaces: FlightOffersGateway, HealthCheck, SearchMetrics
+│   └── repositories/     interface: SearchRecorder
+├── infra/
+│   ├── database/         repositories/ (Postgres) + migrations/ (schema de analytics)
+│   ├── gateways/         flights/ (normalizers, client, gateway, cache Redis) + resilience/
+│   ├── http/             build-app, controllers/, routes/, middlewares/ (log, rede do cliente)
+│   └── telemetry/        logger/, metrics/, tracing/
+├── shared/utils/         utilitários genéricos (datas, comparação de strings)
+├── container.ts          composition root: único lugar que monta as peças reais
+└── server.ts             entry point + graceful shutdown
+
+docker/                   Dockerfile do agregador e docker-compose.yml
 ```
 
 **Decisões**
 
-- **Domínio isolado.** `domain/` não conhece HTTP, Redis nem provider: a regra
-  de negócio é testada com funções puras.
+- **Domínio isolado.** `core/` não conhece HTTP, Redis, Postgres nem
+  telemetria: fala só com interfaces, e a regra é testada sem rede.
 - **Anti-corruption layer.** O formato de cada provider existe só em
-  `normalizers.ts`. Um provider novo é um normalizador + URL/comissão na config.
+  `provider-normalizers.ts`. Um provider novo é um normalizador + URL/comissão na config.
 - **Strategy pattern** para a escolha de oferta: três estratégias trocáveis por env.
 - **Dinheiro em centavos inteiros**, comissão em basis points (100 bps = 1%).
 - **Falha de provider é resultado, não exceção.** O cliente devolve
@@ -288,7 +296,7 @@ domínio estático grátis do ngrok.
 
 ## Testes
 
-146 testes (138 de unidade e integração, 1 com Postgres real e 7 E2E), cerca de
+155 testes (147 de unidade e integração, 1 com Postgres real e 7 E2E), cerca de
 97% de cobertura de linhas: estratégias e cenários da
 regra, normalizadores (dados sujos, virada de meia-noite, float), circuit
 breaker e retry com relógio falso, cliente (retry, timeout, circuito), cache,
@@ -338,7 +346,7 @@ stack com `docker compose` e roda o E2E.
 ## Configuração
 
 Variáveis de ambiente, validadas na subida (config inválida não sobe). Ver
-[`aggregator/src/config.ts`](aggregator/src/config.ts).
+[`aggregator/src/config/env/load-config.ts`](aggregator/src/config/env/load-config.ts).
 
 | Variável | Padrão | Descrição |
 |----------|--------|-----------|

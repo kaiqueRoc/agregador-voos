@@ -1,23 +1,12 @@
 /** Entry point: carrega config, monta dependências, sobe o HTTP e trata shutdown. */
-import { pino } from "pino";
-import { loadConfig } from "./config.js";
+import { loadConfig } from "./config/env/load-config.js";
 import { buildContainer } from "./container.js";
-import { buildApp } from "./http/app.js";
-import { todayIn } from "./http/schemas.js";
+import { buildApp } from "./infra/http/build-app.js";
+import { createLogger } from "./infra/telemetry/logger/create-logger.js";
+import { todayIn } from "./shared/utils/dates.js";
 
 const config = loadConfig();
-
-const logger = pino({
-  level: config.logLevel,
-  base: { service: "flight-aggregator" },
-  timestamp: pino.stdTimeFunctions.isoTime,
-  // Nunca logar credenciais, mesmo que um dia alguém logue headers ou config.
-  redact: {
-    paths: ["req.headers.authorization", "req.headers.cookie", "*.password", "*.databaseUrl"],
-    censor: "[redacted]",
-  },
-  ...(config.logPretty ? { transport: { target: "pino-pretty" } } : {}),
-});
+const logger = createLogger(config);
 
 const container = await buildContainer(config, logger);
 const app = buildApp({
@@ -41,11 +30,18 @@ await app.listen({ port: config.port, host: config.host });
 
 // Graceful shutdown: para de aceitar conexões, termina as em voo, espera as
 // gravações pendentes no banco e fecha Redis/Postgres.
-for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.once(signal, async () => {
-    logger.info({ signal }, "shutting_down");
+async function shutdown(signal: NodeJS.Signals): Promise<void> {
+  logger.info({ signal }, "shutting_down");
+  try {
     await app.close();
     await container.close();
     process.exit(0);
-  });
+  } catch (err) {
+    logger.error({ err }, "shutdown_failed");
+    process.exit(1);
+  }
+}
+
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.once(signal, shutdown);
 }

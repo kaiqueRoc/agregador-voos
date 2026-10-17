@@ -1,7 +1,0 @@
-# Override usado por `make chaos`: liga o chaos engineering que o próprio mock
-# já suporta, sem alterar a definição original do provider-c.
-services:
-  provider-c:
-    environment:
-      FAIL_RATE: "0.3"      # 30% das chamadas devolvem 500
-      TIMEOUT_RATE: "0.3"   # 30% estouram o timeout de 3s

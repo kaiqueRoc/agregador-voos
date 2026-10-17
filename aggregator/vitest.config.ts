@@ -5,7 +5,7 @@ export default defineConfig({
     include: ["tests/**/*.test.ts"],
     coverage: {
       include: ["src/**/*.ts"],
-      exclude: ["src/server.ts", "src/observability/tracing.ts"],
+      exclude: ["src/server.ts", "src/infra/telemetry/tracing/tracing.ts"],
     },
   },
 });

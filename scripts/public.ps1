@@ -11,6 +11,7 @@ param([ValidateSet("start", "url", "stop")] [string]$Action = "start")
 
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..")
+$env:COMPOSE_FILE = "docker/docker-compose.yml"
 $profiles = @("--profile", "observability", "--profile", "public")
 
 function Get-TunnelUrl([string]$service) {

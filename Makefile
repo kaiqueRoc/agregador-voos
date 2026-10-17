@@ -2,6 +2,9 @@ JSON = node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.l
 
 PUBLIC = --profile observability --profile public
 
+# A definição da stack fica em docker/: todo `docker compose` abaixo usa este arquivo.
+export COMPOSE_FILE := docker/docker-compose.yml
+
 .PHONY: up down restart logs ps install test cov lint fmt observability search health chaos calm psql test-db public public-url private e2e
 
 up:            ## sobe tudo (providers + redis + agregador)

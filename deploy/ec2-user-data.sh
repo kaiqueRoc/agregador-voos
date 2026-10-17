@@ -51,6 +51,7 @@ After=docker.service network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=$DIR
+Environment=COMPOSE_FILE=docker/docker-compose.yml
 # Atualiza o código a cada boot (o "-" não deixa uma falha de rede impedir a subida).
 ExecStartPre=-/usr/bin/git -C $DIR pull --ff-only
 ExecStart=/usr/bin/docker compose --profile observability up -d --build

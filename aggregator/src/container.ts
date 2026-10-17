@@ -1,23 +1,29 @@
 /** Composition root: o único lugar que sabe montar as peças de verdade. */
 import { Redis } from "ioredis";
 import pg from "pg";
-import { NoopOfferCache, type OfferCache, RedisOfferCache } from "./cache/offerCache.js";
-import type { Config } from "./config.js";
-import { buildStrategy } from "./domain/selection.js";
-import type { Logger } from "./observability/logger.js";
-import * as metrics from "./observability/metrics.js";
-import { PostgresSearchRecorder } from "./persistence/postgresSearchRecorder.js";
-import { NoopSearchRecorder, type SearchRecorder } from "./persistence/searchRecorder.js";
-import { ProviderClient } from "./providers/client.js";
-import { ProviderGateway } from "./providers/gateway.js";
-import { NORMALIZERS } from "./providers/normalizers.js";
-import { CircuitBreaker } from "./resilience/circuitBreaker.js";
-import { SearchService } from "./services/searchService.js";
+import type { Config, ProviderConfig } from "./config/env/load-config.js";
+import { buildStrategy } from "./core/entities/selection-strategy.js";
+import type { SearchRecorder } from "./core/repositories/search-recorder.js";
+import { CheckReadinessUseCase } from "./core/use-cases/check-readiness.js";
+import { SearchFlightsUseCase } from "./core/use-cases/search-flights.js";
+import { NoopSearchRecorder } from "./infra/database/repositories/noop-search-recorder.js";
+import { PostgresSearchRecorder } from "./infra/database/repositories/postgres-search-recorder.js";
+import {
+  NoopOfferCache,
+  type OfferCache,
+  RedisOfferCache,
+} from "./infra/gateways/flights/offer-cache.js";
+import { ProviderClient } from "./infra/gateways/flights/provider-client.js";
+import { ProviderGateway } from "./infra/gateways/flights/provider-gateway.js";
+import { NORMALIZERS } from "./infra/gateways/flights/provider-normalizers.js";
+import { CircuitBreaker } from "./infra/gateways/resilience/circuit-breaker.js";
+import type { Logger } from "./infra/telemetry/logger/logger.js";
+import * as metrics from "./infra/telemetry/metrics/metrics.js";
+import { PrometheusSearchMetrics } from "./infra/telemetry/metrics/prometheus-search-metrics.js";
 
 export interface Container {
-  service: SearchService;
-  cache: OfferCache;
-  recorder: SearchRecorder;
+  searchFlights: SearchFlightsUseCase;
+  checkReadiness: CheckReadinessUseCase;
   close(): Promise<void>;
 }
 
@@ -30,7 +36,8 @@ function buildCache(config: Config, logger: Logger): { cache: OfferCache; redis?
     commandTimeout: 250,
     connectTimeout: 2000,
   });
-  redis.on("error", (err) => logger.warn({ err: String(err) }, "redis_error"));
+
+  redis.on("error", (err) => logger.warn({ err }, "redis_error"));
   return { cache: new RedisOfferCache(redis, config.cache.ttlSeconds, logger), redis };
 }
 
@@ -45,41 +52,47 @@ async function buildRecorder(config: Config, logger: Logger): Promise<SearchReco
     query_timeout: 3000,
     idleTimeoutMillis: 30_000,
   });
-  pool.on("error", (err) => logger.warn({ err: String(err) }, "postgres_pool_error"));
+  pool.on("error", (err) => logger.warn({ err }, "postgres_pool_error"));
 
   const recorder = new PostgresSearchRecorder(pool, logger, config.persistence.maxPending);
   try {
     await recorder.migrate();
     logger.info({}, "postgres_schema_ready");
   } catch (err) {
-    logger.error({ err: String(err) }, "postgres_migration_failed");
+    logger.error({ err }, "postgres_migration_failed");
   }
   return recorder;
 }
 
+/** Breaker que publica cada mudança de estado em métrica e log. */
+function buildBreaker(provider: string, config: Config, logger: Logger): CircuitBreaker {
+  metrics.circuitState.set({ provider }, metrics.CIRCUIT_STATE_VALUE.closed);
+  return new CircuitBreaker(provider, {
+    ...config.breaker,
+    onStateChange: (name, state) => {
+      metrics.circuitState.set({ provider: name }, metrics.CIRCUIT_STATE_VALUE[state]);
+      logger.warn({ provider: name, state }, "circuit_state_changed");
+    },
+  });
+}
+
+function buildClient(provider: ProviderConfig, config: Config, logger: Logger): ProviderClient {
+  const normalizer = NORMALIZERS[provider.name];
+  if (!normalizer) throw new Error(`sem normalizador para ${provider.name}`);
+  return new ProviderClient({
+    config: provider,
+    normalizer,
+    breaker: buildBreaker(provider.name, config, logger),
+    timeoutMs: config.providerTimeoutMs,
+    retryPolicy: config.retry,
+    logger,
+  });
+}
+
 function buildClients(config: Config, logger: Logger): ProviderClient[] {
   return config.providers
-    .filter((p) => p.enabled)
-    .map((p) => {
-      const normalizer = NORMALIZERS[p.name];
-      if (!normalizer) throw new Error(`sem normalizador para ${p.name}`);
-      metrics.circuitState.set({ provider: p.name }, metrics.CIRCUIT_STATE_VALUE.closed);
-      const breaker = new CircuitBreaker(p.name, {
-        ...config.breaker,
-        onStateChange: (name, state) => {
-          metrics.circuitState.set({ provider: name }, metrics.CIRCUIT_STATE_VALUE[state]);
-          logger.warn({ provider: name, state }, "circuit_state_changed");
-        },
-      });
-      return new ProviderClient({
-        config: p,
-        normalizer,
-        breaker,
-        timeoutMs: config.providerTimeoutMs,
-        retryPolicy: config.retry,
-        logger,
-      });
-    });
+    .filter((provider) => provider.enabled)
+    .map((provider) => buildClient(provider, config, logger));
 }
 
 export async function buildContainer(config: Config, logger: Logger): Promise<Container> {
@@ -88,9 +101,13 @@ export async function buildContainer(config: Config, logger: Logger): Promise<Co
   const gateway = new ProviderGateway(buildClients(config, logger), cache);
 
   return {
-    service: new SearchService(gateway, buildStrategy(config.selection), recorder),
-    cache,
-    recorder,
+    searchFlights: new SearchFlightsUseCase({
+      gateway,
+      strategy: buildStrategy(config.selection),
+      recorder,
+      metrics: new PrometheusSearchMetrics(),
+    }),
+    checkReadiness: new CheckReadinessUseCase({ gateway, cache, database: recorder }),
     async close() {
       await recorder.close();
       await redis?.quit().catch(() => redis?.disconnect());
