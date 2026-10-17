@@ -1,9 +1,10 @@
 name: agregador-voos
 
-# `build.network: host` nos dois builds: em host com systemd-resolved (ou com
-# resolver de VPN), o container de build não resolve DNS pela bridge e o
-# download de dependências falha. Usando a rede do host o build baixa normal.
-# Em máquina com DNS de bridge funcionando a linha é inócua — pode remover.
+# Rede usada no build das imagens: `default` (bridge do Docker) por padrão.
+# Em host com systemd-resolved ou resolver de VPN, o build não resolve DNS pela
+# bridge: rode com `BUILD_NETWORK=host docker compose up --build`.
+# Não é `host` por padrão porque o Compose recente (buildx bake) exige permissão
+# extra para isso e o build falha em CI e em servidores com Docker atualizado.
 
 services:
   # ---------------------------------------------------------------- providers
@@ -11,7 +12,7 @@ services:
   provider-a:
     build:
       context: ./mocks
-      network: host
+      network: ${BUILD_NETWORK:-default}
     image: agregador-voos-mocks
     environment:
       PROVIDER: a
@@ -21,7 +22,7 @@ services:
   provider-b:
     build:
       context: ./mocks
-      network: host
+      network: ${BUILD_NETWORK:-default}
     image: agregador-voos-mocks
     environment:
       PROVIDER: b
@@ -31,7 +32,7 @@ services:
   provider-c:
     build:
       context: ./mocks
-      network: host
+      network: ${BUILD_NETWORK:-default}
     image: agregador-voos-mocks
     environment:
       PROVIDER: c
@@ -75,7 +76,7 @@ services:
   aggregator:
     build:
       context: ./aggregator
-      network: host
+      network: ${BUILD_NETWORK:-default}
     image: agregador-voos-aggregator
     environment:
       PROVIDER_A_URL: http://provider-a:3000/provider-a/search
