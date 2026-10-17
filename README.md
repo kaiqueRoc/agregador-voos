@@ -288,7 +288,8 @@ domínio estático grátis do ngrok.
 
 ## Testes
 
-120 testes, cerca de 97% de cobertura de linhas: estratégias e cenários da
+146 testes (138 de unidade e integração, 1 com Postgres real e 7 E2E), cerca de
+97% de cobertura de linhas: estratégias e cenários da
 regra, normalizadores (dados sujos, virada de meia-noite, float), circuit
 breaker e retry com relógio falso, cliente (retry, timeout, circuito), cache,
 gateway, persistência, e a app inteira via `fastify.inject` (falha parcial,
