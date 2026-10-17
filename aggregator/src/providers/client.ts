@@ -24,7 +24,7 @@ export interface ProviderResult {
   error?: string;
 }
 
-export class HttpStatusError extends Error {
+class HttpStatusError extends Error {
   override name = "HttpStatusError";
   constructor(readonly status: number) {
     super(`HTTP ${status}`);

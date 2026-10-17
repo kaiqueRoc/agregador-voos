@@ -18,10 +18,7 @@ export function flightId({ selected: o }: AggregatedFlight): string {
  * Ordem total: preço exibido, partida, companhia, provider. Os dois últimos só
  * desempatam, para buscas idênticas devolverem sempre a mesma lista.
  */
-export function compareFlights(
-  { selected: a }: AggregatedFlight,
-  { selected: b }: AggregatedFlight,
-) {
+function compareFlights({ selected: a }: AggregatedFlight, { selected: b }: AggregatedFlight) {
   return (
     a.priceCents - b.priceCents ||
     compareStrings(a.departureAt, b.departureAt) ||

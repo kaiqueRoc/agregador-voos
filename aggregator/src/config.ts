@@ -5,7 +5,7 @@
  */
 import { z } from "zod";
 
-export const STRATEGIES = ["cheapest", "max_commission", "balanced"] as const;
+const STRATEGIES = ["cheapest", "max_commission", "balanced"] as const;
 export type StrategyName = (typeof STRATEGIES)[number];
 
 const PROVIDER_IDS = ["A", "B", "C"] as const;
