@@ -1,0 +1,40 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+
+  - name: Analytics (Postgres)
+    uid: analytics
+    type: grafana-postgresql-datasource
+    url: postgres:5432
+    user: aggregator
+    jsonData:
+      database: aggregator
+      sslmode: disable
+      postgresVersion: 1700
+    secureJsonData:
+      password: ${POSTGRES_PASSWORD}
+
+  - name: Logs (Loki)
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    jsonData:
+      # trace_id no log vira link para o trace no Jaeger.
+      derivedFields:
+        - name: trace_id
+          matcherRegex: '"trace_id":"(\w+)"'
+          datasourceUid: jaeger
+          url: "$${__value.raw}"
+
+  - name: Traces (Jaeger)
+    uid: jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger:16686

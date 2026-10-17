@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.env
+
+# IDE / local
+.idea/
+.vscode/
+*.bak*
+CLAUDE.local.md
+
+# Node
+node_modules/
+dist/
+coverage/
