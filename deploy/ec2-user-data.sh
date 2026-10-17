@@ -19,7 +19,13 @@ if [ ! -f /swapfile ]; then
   echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi
 
-[ -d "$DIR/.git" ] || git clone "$REPO" "$DIR"
+# Tenta por até 1h: o repositório pode ainda não estar público no primeiro boot.
+for _ in $(seq 1 120); do
+  [ -d "$DIR/.git" ] && break
+  git clone "$REPO" "$DIR" && break
+  echo "repositório indisponível, nova tentativa em 30s"
+  sleep 30
+done
 cd "$DIR"
 
 # Modo público: senhas aleatórias e Grafana sem nenhum login (só leitura).
