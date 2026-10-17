@@ -11,6 +11,7 @@ import type { SearchService } from "../services/searchService.js";
 import { CanonicalLogController, routeOf } from "./requestLogging.js";
 import { operationalRoutes } from "./routes/operational.js";
 import { searchRoutes } from "./routes/search.js";
+import { todayIn } from "./schemas.js";
 
 export interface AppDeps {
   service: SearchService;
@@ -20,6 +21,8 @@ export interface AppDeps {
   logger?: FastifyBaseLogger;
   /** Sem limite, a busca não é limitada (testes). */
   rateLimit?: { max: number; timeWindowMs: number };
+  /** Data de hoje para recusar busca no passado; padrão: hoje em São Paulo. */
+  today?: () => string;
 }
 
 const ERROR_CODES: Record<number, string> = { 429: "rate_limited", 500: "internal_error" };
@@ -30,6 +33,7 @@ export function buildApp({
   recorder,
   logger,
   rateLimit,
+  today = () => todayIn("America/Sao_Paulo"),
 }: AppDeps): FastifyInstance {
   const app = Fastify({
     ...(logger ? { loggerInstance: logger } : { logger: false }),
@@ -54,7 +58,7 @@ export function buildApp({
     metrics.httpDuration.observe(labels, reply.elapsedTime / 1000);
   });
 
-  app.register(searchRoutes, { service, rateLimit });
+  app.register(searchRoutes, { service, rateLimit, today });
   app.register(operationalRoutes, { service, cache, recorder });
 
   app.setErrorHandler<FastifyError>((error, request, reply) => {

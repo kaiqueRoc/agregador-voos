@@ -58,10 +58,8 @@ fmt:
 observability: ## sobe tudo + Grafana (3000) + Jaeger (16686) + Prometheus (9090)
 	OTEL_ENABLED=true docker compose --profile observability up -d --build
 
-search:        ## busca de exemplo
-	@curl -s -X POST localhost:8000/search \
-		-H 'Content-Type: application/json' \
-		-d '{"origin":"GRU","destination":"GIG","date":"2026-10-12"}' | $(JSON)
+search:        ## busca de exemplo, com data daqui a 30 dias
+	@curl -s "localhost:8000/search?origin=GRU&destination=GIG&date=$$(node -p 'new Date(Date.now()+30*864e5).toISOString().slice(0,10)')" | $(JSON)
 
 health:
 	@curl -s localhost:8000/health | $(JSON)

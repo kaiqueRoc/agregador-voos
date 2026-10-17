@@ -87,6 +87,13 @@ describe.skipIf(!BASE)(`stack em ${BASE}`, () => {
     expect(body.details).toHaveProperty("date");
   });
 
+  it("recusa data no passado", async () => {
+    const twoDaysAgo = new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10);
+    const { status, body } = await search({ ...QUERY, date: twoDaysAgo });
+    expect(status).toBe(400);
+    expect(body.details).toHaveProperty("date");
+  });
+
   it("responde rápido com cache quente", async () => {
     await search(QUERY);
     const started = performance.now();

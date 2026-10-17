@@ -3,6 +3,7 @@ import { pino } from "pino";
 import { loadConfig } from "./config.js";
 import { buildContainer } from "./container.js";
 import { buildApp } from "./http/app.js";
+import { todayIn } from "./http/schemas.js";
 
 const config = loadConfig();
 
@@ -19,7 +20,12 @@ const logger = pino({
 });
 
 const container = await buildContainer(config, logger);
-const app = buildApp({ ...container, logger, rateLimit: config.rateLimit });
+const app = buildApp({
+  ...container,
+  logger,
+  rateLimit: config.rateLimit,
+  today: () => todayIn(config.searchTimezone),
+});
 
 logger.info(
   {

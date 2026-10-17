@@ -48,6 +48,14 @@ const EnvSchema = z.object({
   RATE_LIMIT_MAX: int(1).default(60),
   RATE_LIMIT_WINDOW_MS: int(1).default(60_000),
 
+  // Fuso usado para saber que dia é "hoje" (busca no passado é recusada).
+  SEARCH_TIMEZONE: z
+    .string()
+    .default("America/Sao_Paulo")
+    .refine((tz) => Intl.supportedValuesOf("timeZone").includes(tz) || tz === "UTC", {
+      message: "fuso horário IANA inválido",
+    }),
+
   SELECTION_STRATEGY: z.enum(STRATEGIES).default("balanced"),
   PRICE_TOLERANCE_BPS: int(0).default(200), // 2% acima da oferta mais barata...
   PRICE_TOLERANCE_MAX_CENTS: int(0).default(3000), // ...limitado a R$ 30,00
@@ -74,6 +82,7 @@ export interface Config {
   cache: { enabled: boolean; redisUrl: string; ttlSeconds: number };
   persistence: { enabled: boolean; databaseUrl: string; ssl: boolean; maxPending: number };
   rateLimit?: { max: number; timeWindowMs: number };
+  searchTimezone: string;
   selection: { strategy: StrategyName; toleranceBps: number; toleranceMaxCents: number };
 }
 
@@ -114,6 +123,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
     rateLimit: env.RATE_LIMIT_ENABLED
       ? { max: env.RATE_LIMIT_MAX, timeWindowMs: env.RATE_LIMIT_WINDOW_MS }
       : undefined,
+    searchTimezone: env.SEARCH_TIMEZONE,
     selection: {
       strategy: env.SELECTION_STRATEGY,
       toleranceBps: env.PRICE_TOLERANCE_BPS,

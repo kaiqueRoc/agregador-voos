@@ -37,6 +37,7 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ SELECTION_STRATEGY: "random" })).toThrow();
     expect(() => loadConfig({ PROVIDER_TIMEOUT_MS: "-1" })).toThrow();
     expect(() => loadConfig({ PROVIDER_A_URL: "não é url" })).toThrow();
+    expect(() => loadConfig({ SEARCH_TIMEZONE: "Marte/Olympus" })).toThrow();
   });
 });
 

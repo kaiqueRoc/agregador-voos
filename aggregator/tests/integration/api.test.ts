@@ -125,9 +125,16 @@ function setup(
     new BalancedStrategy(200, 3000),
     recorder,
   );
-  return { app: buildApp({ service, cache, recorder, logger, rateLimit }), store, calls, recorder };
+  return {
+    app: buildApp({ service, cache, recorder, logger, rateLimit, today: () => TODAY }),
+    store,
+    calls,
+    recorder,
+  };
 }
 
+/** "Hoje" fixo nos testes: a data das buscas (2026-10-20) nunca vira passado. */
+const TODAY = "2026-10-17";
 const BODY = { origin: "gru", destination: "GIG", date: "2026-10-20" };
 
 describe("POST /search", () => {
@@ -265,6 +272,28 @@ describe("POST /search", () => {
     expect(res.statusCode).toBe(400);
     expect(res.json().details).toHaveProperty(field);
     expect(calls).toEqual({});
+  });
+
+  it("recusa data no passado com 400 e explica o motivo", async () => {
+    const { app, calls } = setup();
+    const res = await app.inject({
+      method: "POST",
+      url: "/search",
+      payload: { ...BODY, date: "2026-10-16" },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().details.date[0]).toContain("passado");
+    expect(calls).toEqual({}); // nenhum provider consultado
+  });
+
+  it("aceita a data de hoje", async () => {
+    const { app } = setup();
+    const res = await app.inject({
+      method: "POST",
+      url: "/search",
+      payload: { ...BODY, date: TODAY },
+    });
+    expect(res.statusCode).toBe(200);
   });
 
   it("JSON malformado → 400", async () => {

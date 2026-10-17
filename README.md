@@ -18,7 +18,7 @@ docker compose up --build        # providers + redis + postgres + agregador → 
 
 ```bash
 curl -X POST localhost:8000/search -H 'Content-Type: application/json' \
-  -d '{"origin":"GRU","destination":"GIG","date":"2026-10-20"}'
+  -d '{"origin":"GRU","destination":"GIG","date":"2026-12-20"}'
 ```
 
 | Comando                         | O que faz                                                         |
@@ -37,17 +37,19 @@ Postgres **`5433`** (para não colidir com um Postgres instalado na máquina).
 
 ## API
 
-**`POST /search`** com `{ "origin": "GRU", "destination": "GIG", "date": "2026-10-20" }`.
-Aceita também os nomes do enunciado (`origem`, `destino`, `data`). Para testar
-no navegador: `GET /search?origin=GRU&destination=GIG&date=2026-10-20`.
+**`POST /search`** com `{ "origin": "GRU", "destination": "GIG", "date": "2026-12-20" }`.
+Aceita também os nomes do enunciado (`origem`, `destino`, `data`). A data tem que
+ser **de hoje em diante** (no fuso de São Paulo, configurável por
+`SEARCH_TIMEZONE`); data no passado → `400`. Para testar no navegador:
+`GET /search?origin=GRU&destination=GIG&date=2026-12-20`.
 
 ```jsonc
 {
-  "query": { "origin": "GRU", "destination": "GIG", "date": "2026-10-20" },
+  "query": { "origin": "GRU", "destination": "GIG", "date": "2026-12-20" },
   "flights": [{
-    "id": "VOEPASS-GRUGIG-202610202225", "airline": "VOEPASS",
+    "id": "VOEPASS-GRUGIG-202612202225", "airline": "VOEPASS",
     "origin": "GRU", "destination": "GIG",
-    "departureAt": "2026-10-20T22:25", "arrivalAt": "2026-10-20T23:48", "durationMinutes": 83,
+    "departureAt": "2026-12-20T22:25", "arrivalAt": "2026-12-20T23:48", "durationMinutes": 83,
     "price": { "amount": 412.88, "currency": "BRL" },
     "provider": "provider-b",
     "offersCompared": 3                 // quantos providers vendiam este voo
@@ -348,6 +350,7 @@ Variáveis de ambiente, validadas na subida (config inválida não sobe). Ver
 | `REDIS_URL` / `CACHE_ENABLED` / `CACHE_TTL_SECONDS` | – / `true` / `300` | cache |
 | `PERSISTENCE_ENABLED` / `DATABASE_URL` / `DATABASE_SSL` / `PERSISTENCE_MAX_PENDING` | `false` / – / `false` / `200` | analytics (o compose liga) |
 | `RATE_LIMIT_ENABLED` / `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW_MS` | `true` / `60` / `60000` | limite por cliente |
+| `SEARCH_TIMEZONE` | `America/Sao_Paulo` | fuso usado para saber que dia é "hoje" |
 | `SELECTION_STRATEGY` | `balanced` | `cheapest` \| `max_commission` \| `balanced` |
 | `PRICE_TOLERANCE_BPS` / `PRICE_TOLERANCE_MAX_CENTS` | `200` / `3000` | faixa da `balanced` (2%, R$ 30) |
 | `LOG_LEVEL` / `LOG_PRETTY` | `info` / `false` | logs |

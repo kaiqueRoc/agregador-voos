@@ -4,12 +4,14 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { SearchOutcome, SearchService } from "../../services/searchService.js";
 import { clientKey } from "../clientNetwork.js";
-import { SearchRequestSchema, toResponse } from "../schemas.js";
+import { searchRequestSchema, toResponse } from "../schemas.js";
 
 export interface SearchRoutesOptions {
   service: SearchService;
   /** Limite de buscas por cliente; omitido = sem limite. */
   rateLimit?: { max: number; timeWindowMs: number };
+  /** Data de hoje (YYYY-MM-DD): busca com data anterior é recusada. */
+  today: () => string;
 }
 
 /** Resumo da busca que entra na linha de log da requisição. */
@@ -45,8 +47,9 @@ export const searchRoutes: FastifyPluginAsync<SearchRoutesOptions> = async (api,
     });
   }
 
+  const schema = searchRequestSchema(opts.today);
   const search = async (input: unknown, request: FastifyRequest, reply: FastifyReply) => {
-    const parsed = SearchRequestSchema.safeParse(input);
+    const parsed = schema.safeParse(input);
     if (!parsed.success) {
       const details = z.flattenError(parsed.error).fieldErrors;
       request.logContext.validation = details;
