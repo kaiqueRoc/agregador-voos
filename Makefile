@@ -2,7 +2,7 @@ JSON = node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.l
 
 PUBLIC = --profile observability --profile public
 
-.PHONY: up down restart logs ps install test cov lint fmt observability search health chaos calm psql test-db public public-url private
+.PHONY: up down restart logs ps install test cov lint fmt observability search health chaos calm psql test-db public public-url private e2e
 
 up:            ## sobe tudo (providers + redis + agregador)
 	docker compose up -d --build
@@ -36,6 +36,9 @@ psql:          ## abre o banco de analytics
 
 test-db:       ## testes incluindo integração com Postgres real (precisa do compose de pé)
 	cd aggregator && TEST_DATABASE_URL=postgres://aggregator:aggregator@localhost:5433/aggregator npm test
+
+e2e:           ## E2E contra a stack de pé (E2E_BASE_URL=http://<ip>:8000 make e2e para o deploy)
+	cd aggregator && E2E_BASE_URL=$${E2E_BASE_URL:-http://localhost:8000} npm run test:e2e
 
 install:       ## instala dependências do agregador
 	cd aggregator && npm ci

@@ -6,7 +6,7 @@ negócio e devolve uma resposta única e ordenada. Cada busca fica registrada
 para análise num dashboard.
 
 **Stack:** Node.js 24 · TypeScript · Fastify · Redis · PostgreSQL · Vitest ·
-Docker · Prometheus · Grafana · OpenTelemetry · GitHub Actions
+Docker · Prometheus · Grafana · OpenTelemetry · GitHub Actions · AWS EC2
 
 ---
 
@@ -27,6 +27,7 @@ curl -X POST localhost:8000/search -H 'Content-Type: application/json' \
 | `make public` / `.\scripts\public.ps1` | publica API e dashboard na internet ([ver abaixo](#acesso-público)) |
 | `make chaos` / `make calm`      | provider-c com 30% de erro 500 e 30% de travamento / normal       |
 | `make test` / `make test-db`    | testes / incluindo integração com Postgres real                   |
+| `make e2e`                      | E2E contra a stack de pé (local ou o deploy, via `E2E_BASE_URL`)  |
 | `make lint`                     | Biome + typecheck                                                 |
 
 Portas no host: agregador `8000`, providers `3001–3003`, Redis `6379`,
@@ -290,8 +291,19 @@ regra, normalizadores (dados sujos, virada de meia-noite, float), circuit
 breaker e retry com relógio falso, cliente (retry, timeout, circuito), cache,
 gateway, persistência, e a app inteira via `fastify.inject` (falha parcial,
 503, cache, single-flight, rate limit, log por requisição). Com
-`TEST_DATABASE_URL` roda também contra Postgres real. A CI executa tudo isso e
-um E2E com `docker compose`.
+`TEST_DATABASE_URL` roda também contra Postgres real.
+
+**E2E** (`tests/e2e`): roda contra a stack **de verdade** por HTTP: os 3 mocks
+originais, 60 voos únicos, descarte dos registros sujos, ordenação, cache e
+validação. O mesmo teste valida a máquina local e o deploy:
+
+```bash
+E2E_BASE_URL=http://localhost:8000 npm run test:e2e     # dentro de aggregator/
+E2E_BASE_URL=http://<ip-da-vm>:8000 npm run test:e2e
+```
+
+A CI executa lint, typecheck, testes com Postgres real, build, e depois sobe a
+stack com `docker compose` e roda o E2E.
 
 ---
 

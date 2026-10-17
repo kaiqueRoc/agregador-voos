@@ -16,7 +16,8 @@
     "cov": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
-    "fmt": "biome check --write ."
+    "fmt": "biome check --write .",
+    "test:e2e": "vitest run tests/e2e"
   },
   "dependencies": {
     "@fastify/rate-limit": "^11.2.1",
