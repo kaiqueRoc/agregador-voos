@@ -36,9 +36,9 @@ services:
     image: agregador-voos-mocks
     environment:
       PROVIDER: c
-      # Chaos engineering: descomente para ver a degradação parcial em ação.
-      # FAIL_RATE: "0.3"      # 30% das chamadas devolvem 500
-      # TIMEOUT_RATE: "0.3"   # 30% estouram o timeout de 3s
+      # Chaos engineering: `make chaos` liga, `make calm` volta ao normal.
+      FAIL_RATE: ${FAIL_RATE:-0}        # 0.3 = 30% das chamadas devolvem 500
+      TIMEOUT_RATE: ${TIMEOUT_RATE:-0}  # 0.3 = 30% estouram o timeout de 3s
     ports:
       - "3003:3000"
 

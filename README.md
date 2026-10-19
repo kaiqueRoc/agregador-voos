@@ -105,7 +105,12 @@ aggregator/src/
 ├── container.ts          composition root: único lugar que monta as peças reais
 └── server.ts             entry point + graceful shutdown
 
+mocks/                    os 3 providers simulados (Python, mesma imagem, contratos diferentes)
 docker/                   Dockerfile do agregador e docker-compose.yml
+observability/            Prometheus, Alloy → Loki e Grafana (datasources + dashboard)
+scripts/public.ps1        acesso público via Cloudflare Quick Tunnel (Windows)
+deploy/ec2-user-data.sh   bootstrap da VM na AWS EC2
+.github/workflows/ci.yml  lint, typecheck, testes, build e E2E com docker compose
 ```
 
 **Decisões**
@@ -296,7 +301,7 @@ domínio estático grátis do ngrok.
 
 ## Testes
 
-155 testes (147 de unidade e integração, 1 com Postgres real e 7 E2E), cerca de
+158 testes (150 de unidade e integração, 1 com Postgres real e 7 E2E), cerca de
 97% de cobertura de linhas: estratégias e cenários da
 regra, normalizadores (dados sujos, virada de meia-noite, float), circuit
 breaker e retry com relógio falso, cliente (retry, timeout, circuito), cache,
@@ -356,8 +361,8 @@ Variáveis de ambiente, validadas na subida (config inválida não sobe). Ver
 | `PROVIDER_TIMEOUT_MS` | `3000` | orçamento total por provider |
 | `RETRY_MAX_ATTEMPTS` / `RETRY_BASE_DELAY_MS` / `RETRY_MAX_DELAY_MS` | `3` / `100` / `800` | retry |
 | `BREAKER_FAILURE_THRESHOLD` / `BREAKER_RESET_TIMEOUT_MS` | `5` / `30000` | circuit breaker |
-| `REDIS_URL` / `CACHE_ENABLED` / `CACHE_TTL_SECONDS` | – / `true` / `300` | cache |
-| `PERSISTENCE_ENABLED` / `DATABASE_URL` / `DATABASE_SSL` / `PERSISTENCE_MAX_PENDING` | `false` / – / `false` / `200` | analytics (o compose liga) |
+| `REDIS_URL` / `CACHE_ENABLED` / `CACHE_TTL_SECONDS` | `redis://localhost:6379` / `true` / `300` | cache |
+| `PERSISTENCE_ENABLED` / `DATABASE_URL` / `DATABASE_SSL` / `PERSISTENCE_MAX_PENDING` | `false` / `postgres://…@localhost:5433/aggregator` / `false` / `200` | analytics (o compose liga) |
 | `RATE_LIMIT_ENABLED` / `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW_MS` | `true` / `60` / `60000` | limite por cliente |
 | `SEARCH_TIMEZONE` | `America/Sao_Paulo` | fuso usado para saber que dia é "hoje" |
 | `SELECTION_STRATEGY` | `balanced` | `cheapest` \| `max_commission` \| `balanced` |

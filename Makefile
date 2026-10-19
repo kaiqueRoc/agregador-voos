@@ -68,5 +68,7 @@ health:
 	@curl -s localhost:8000/health | $(JSON)
 
 chaos:         ## provider-c derrubando 30% e pendurando 30% das chamadas
-	docker compose run -d --rm --service-ports \
-		-e FAIL_RATE=0.3 -e TIMEOUT_RATE=0.3 provider-c
+	FAIL_RATE=0.3 TIMEOUT_RATE=0.3 docker compose up -d provider-c
+
+calm:          ## provider-c de volta ao normal
+	docker compose up -d provider-c
