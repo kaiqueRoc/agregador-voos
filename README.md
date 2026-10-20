@@ -361,6 +361,10 @@ stack com `docker compose` e roda o E2E.
 | Horários locais, sem fuso | é o que os providers entregam | duração errada entre fusos diferentes |
 | Gravação em background com limite | o banco nunca atrasa a busca | sob pico, buscas podem faltar no analytics |
 | Feature flags por env | zero dependência | mudar exige reiniciar |
+| Stack inteira numa VM EC2 via `docker compose` | o mesmo compose roda local, na CI e no deploy | ponto único de falha; sem escala horizontal |
+| Redis e Postgres em container na própria VM | custo zero e nada a mais para provisionar | sem backup, failover nem patch gerenciados (o que ElastiCache/RDS dariam) |
+| Deploy por `git pull` + rebuild no boot da VM | sem pipeline nem registry de imagens | build na própria VM (lento, precisa de swap); se o pull falha, a versão antiga continua no ar sem aviso |
+| HTTP direto no IP da VM | nada de domínio, certificado ou balanceador | sem TLS; o IP muda se a VM for parada e ligada sem Elastic IP |
 
 ## Evolução para produção
 
@@ -370,6 +374,8 @@ stack com `docker compose` e roda o E2E.
 - A/B da tolerância medindo conversão × comissão; feature flags dinâmicas.
 - Analytics em escala: fila (outbox, SQS) e banco colunar; particionar por data.
 - Contract tests com os providers; autenticação; WAF; usuário somente leitura para o Grafana.
+- Deploy pela CI: imagem construída uma vez e publicada no ECR, VM (ou ECS) só puxa a imagem; falha de deploy quebra o pipeline em vez de manter a versão antiga em silêncio.
+- Redis e Postgres gerenciados (ElastiCache, RDS) e HTTPS com ALB + certificado do ACM.
 - SLOs e alertas: p95, % de respostas parciais, circuito aberto, gravações descartadas.
 
 ---
