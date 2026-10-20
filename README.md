@@ -24,7 +24,7 @@ curl -X POST localhost:8000/search -H 'Content-Type: application/json' \
 | Comando                         | O que faz                                                         |
 |---------------------------------|-------------------------------------------------------------------|
 | `make observability`            | sobe também Grafana (`:3000`), Prometheus, Loki e Jaeger          |
-| `make public` / `.\scripts\public.ps1` | publica API e dashboard na internet ([ver abaixo](#acesso-público)) |
+| `make public` / `.\scripts\public.ps1` | demo local opcional: expõe a máquina local por um túnel ([ver abaixo](#demo-local-opcional-cloudflare-quick-tunnel)) |
 | `make chaos` / `make calm`      | provider-c com 30% de erro 500 e 30% de travamento / normal       |
 | `make test` / `make test-db`    | testes / incluindo integração com Postgres real                   |
 | `make e2e`                      | E2E contra a stack de pé (local ou o deploy, via `E2E_BASE_URL`)  |
@@ -108,8 +108,8 @@ aggregator/src/
 mocks/                    os 3 providers simulados (Python, mesma imagem, contratos diferentes)
 docker/                   Dockerfile do agregador e docker-compose.yml
 observability/            Prometheus, Alloy → Loki e Grafana (datasources + dashboard)
-scripts/public.ps1        acesso público via Cloudflare Quick Tunnel (Windows)
-deploy/ec2-user-data.sh   bootstrap da VM na AWS EC2
+scripts/public.ps1        demo local opcional via Cloudflare Quick Tunnel (Windows)
+deploy/ec2-user-data.sh   deploy na AWS EC2 (user data da VM)
 .github/workflows/ci.yml  lint, typecheck, testes, build e E2E com docker compose
 ```
 
@@ -275,27 +275,53 @@ SQL padrão: troca para um Postgres gerenciado (Supabase, RDS) só com
 
 ---
 
-## Acesso público
+## Deploy (AWS EC2)
 
-O serviço roda na máquina local e é publicado por um **Cloudflare Quick
-Tunnel**: HTTPS, sem conta, sem domínio e sem abrir porta no roteador (a
-conexão *sai* da máquina para a Cloudflare).
+O deploy roda numa VM Ubuntu na **AWS EC2** com a stack completa do compose
+(agregador, providers, Redis, Postgres e observabilidade). O
+[`deploy/ec2-user-data.sh`](deploy/ec2-user-data.sh) vai como *user data* da
+instância e, no primeiro boot:
+
+1. instala Docker e git e cria 2 GB de swap para o build das imagens;
+2. clona o repositório em `/opt/agregador-voos`;
+3. gera um `.env` com senhas aleatórias (Postgres, admin do Grafana) e o
+   Grafana em modo público somente leitura (sem login, sem basic auth);
+4. registra um serviço systemd (`agregador.service`) que, a cada boot, faz
+   `git pull --ff-only` e `docker compose --profile observability up -d --build`.
+
+Parar a VM para economizar não exige refazer nada: ao ligar, a stack volta
+sozinha, já com o código atualizado. Log da instalação: `/var/log/agregador-setup.log`.
+
+- **API:** `http://<ip-da-vm>:8000`
+- **Dashboard:** `http://<ip-da-vm>:3000`
+- **Validação:** `E2E_BASE_URL=http://<ip-da-vm>:8000 make e2e` roda o mesmo E2E da CI contra a VM.
+
+| Risco | Proteção |
+|-------|----------|
+| Abuso da API | 60 buscas/min por cliente, pelo IP da conexão. Header de proxy (`CF-Connecting-IP`) só é aceito quando a conexão vem da rede interna; vindo direto da internet seria forjável e é ignorado |
+| Vazamento de métricas | `/metrics` responde 404 para qualquer conexão que não seja da rede interna (só o Prometheus lê) |
+| Invasão do Grafana | login desligado por completo (formulário e basic auth); só leitura anônima |
+| Senhas padrão | o `.env` da VM troca as senhas de Postgres e Grafana por valores aleatórios |
+| Banco, cache, logs e ferramentas expostos | o Security Group libera só `8000` e `3000` (e SSH restrito); Redis, Postgres, Loki, Prometheus, Jaeger e os providers ficam fechados |
+
+Limitações: HTTP sem TLS e, sem Elastic IP, o IP público muda quando a VM é
+parada e ligada. Para produção: Elastic IP ou domínio, e HTTPS com ALB +
+certificado do ACM (ou CloudFront na frente).
+
+### Demo local opcional: Cloudflare Quick Tunnel
+
+Para mostrar a stack rodando na máquina local sem a VM, um **Cloudflare Quick
+Tunnel** publica a API e o dashboard com HTTPS, sem conta, sem domínio e sem
+abrir porta no roteador (a conexão *sai* da máquina para a Cloudflare). Nesse
+modo o rate limit usa o `CF-Connecting-IP` (a conexão chega pela rede interna,
+vinda do tunnel), e Loki, banco e cache não passam pelo tunnel.
 
 ```powershell
 .\scripts\public.ps1          # sobe tudo e mostra as URLs (url: só mostra; stop: derruba)
 ```
 
-| Risco | Proteção |
-|-------|----------|
-| Abuso da API | 60 buscas/min por cliente, pelo IP real (`CF-Connecting-IP`) |
-| Vazamento de métricas | `/metrics` responde 404 para quem vem da internet |
-| Invasão do Grafana | login desligado por completo (formulário e basic auth); só leitura |
-| Logs expostos | o Loki não passa pelo tunnel; só o Grafana (somente leitura) consulta |
-| Banco e cache expostos | não passam pelo tunnel |
-
-Limitações: a URL muda quando o tunnel reinicia, e a máquina precisa ficar
-ligada. Para uma URL fixa: *named tunnel* da Cloudflare (com domínio) ou o
-domínio estático grátis do ngrok.
+A URL muda quando o tunnel reinicia e a máquina precisa ficar ligada; por isso
+o deploy de referência é a EC2.
 
 ---
 
